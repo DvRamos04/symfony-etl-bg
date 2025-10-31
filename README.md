@@ -48,7 +48,7 @@ TIMEZONE=America/El_Salvador
 CRYPTO_KEY_B64=...
 CRYPTO_IV_B64=...
 
-# SFTP (opcional)
+
 SFTP_ENABLE=1
 SFTP_HOST=127.0.0.1
 SFTP_PORT=22
