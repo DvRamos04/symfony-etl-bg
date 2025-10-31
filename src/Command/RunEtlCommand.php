@@ -21,7 +21,6 @@ class RunEtlCommand extends Command {
     $user = getenv("DB_USER") ?: "root";
     $pass = getenv("DB_PASSWORD") ?: "";
 
-    // 1) Intentar conectar a la BD; si no existe, crearla
     try {
       $this->pdo = new \PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, [\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);
     } catch (\PDOException $e) {
@@ -32,7 +31,6 @@ class RunEtlCommand extends Command {
       } else { throw $e; }
     }
 
-    // 2) Autocrear tablas si no existen
     $schema = <<<SQL
 CREATE TABLE IF NOT EXISTS etl_execution (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -82,7 +80,6 @@ SQL;
     $etlFile  = $this->storage."/etl_{$today}.csv";
     $sumFile  = $this->storage."/summary_{$today}.csv";
 
-    // 1) Descargar JSON
     $http = HttpClient::create();
     $resp = $http->request("GET", $this->apiBase."/users");
     if (200 !== $resp->getStatusCode()) { $out->writeln("<error>API error</error>"); return Command::FAILURE; }
@@ -90,7 +87,6 @@ SQL;
     file_put_contents($jsonFile, $json);
     $users = json_decode($json, true)["users"] ?? [];
 
-    // 2) CSV detalle
     $fp = fopen($etlFile, "w");
     fputcsv($fp, ["user_id","gender","age","city","os"]);
     foreach ($users as $u) {
@@ -105,7 +101,6 @@ SQL;
     }
     fclose($fp);
 
-    // 3) CSV summary (formato exigido)
     $summary = ["register"=>["total"=>count($users)], "gender"=>["male"=>0,"female"=>0,"other"=>0], "age"=>[], "city"=>[], "os"=>[]];
     $mkAge = function(int $age): string {
       $ranges = [[0,10],[11,20],[21,30],[31,40],[41,50],[51,60],[61,70],[71,80],[81,90]];
@@ -126,17 +121,11 @@ SQL;
     }
     $fp = fopen($sumFile,"w");
     fputcsv($fp, ["registre", $summary["register"]["total"]]);
-    fputcsv($fp, ["gender","total"]);
-    foreach(["male","female","other"] as $g) fputcsv($fp, [$g, $summary["gender"][$g]]);
-    fputcsv($fp, []); fputcsv($fp, ["age","male","female","other"]);
-    foreach($summary["age"] as $range=>$row) fputcsv($fp, [$range,$row["male"],$row["female"],$row["other"]]);
-    fputcsv($fp, []); fputcsv($fp, ["City","male","female","other"]);
-    foreach($summary["city"] as $city=>$row) fputcsv($fp, [$city,$row["male"],$row["female"],$row["other"]]);
-    fputcsv($fp, []); fputcsv($fp, ["SO","total"]);
-    foreach($summary["os"] as $os=>$tot) fputcsv($fp, [$os,$tot]);
-    fclose($fp);
+    fputcsv($fp, ["gender","total"]); foreach(["male","female","other"] as $g) fputcsv($fp, [$g, $summary["gender"][$g]]);
+    fputcsv($fp, []); fputcsv($fp, ["age","male","female","other"]); foreach($summary["age"] as $range=>$r) fputcsv($fp, [$range,$r["male"],$r["female"],$r["other"]]);
+    fputcsv($fp, []); fputcsv($fp, ["City","male","female","other"]); foreach($summary["city"] as $city=>$r) fputcsv($fp, [$city,$r["male"],$r["female"],$r["other"]]);
+    fputcsv($fp, []); fputcsv($fp, ["SO","total"]); foreach($summary["os"] as $os=>$t) fputcsv($fp, [$os,$t]); fclose($fp);
 
-    // 4) Persistencia
     $this->pdo->beginTransaction();
     $stmt = $this->pdo->prepare("INSERT INTO etl_execution(run_date,raw_json_file,etl_csv_file,summary_csv_file) VALUES (NOW(),?,?,?)");
     $stmt->execute([basename($jsonFile), basename($etlFile), basename($sumFile)]);
@@ -154,11 +143,10 @@ SQL;
     $insSO->execute([$execId,"register","total",$summary["register"]["total"]]);
     $this->pdo->commit();
 
-    // 5) Cifrado .enc
     foreach([$jsonFile,$etlFile,$sumFile] as $file){
       $plain = file_get_contents($file);
       $cipher = openssl_encrypt($plain,"aes-256-cbc",$this->key,0,$this->iv);
-      file_put_contents($file.".enc", $cipher);
+      file_put_contents($file.".enc",$cipher);
     }
 
     $out->writeln("<info>OK</info> ExecID=$execId | JSON=$jsonFile | ETL=$etlFile | SUM=$sumFile");
