@@ -1,0 +1,9 @@
+/vendor/
+/var/
+/.env
+/.idea/
+/.vscode/
+/node_modules/
+/storage/*.json
+/storage/*.csv
+/storage/*.enc
