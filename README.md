@@ -28,7 +28,6 @@ Este repositorio es la **pieza de backend** de una prueba técnica: un **ETL en 
 - PHP 8.x (yo lo corrí con `C:\xampp\php\php.exe`)
 - Composer
 - MySQL (local con XAMPP está perfecto)
-- Opcional: un SFTP al que puedas subir (si no tienes, el ETL igual corre y solo saltará la subida).
 
 ---
 
